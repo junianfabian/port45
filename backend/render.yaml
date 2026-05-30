@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: junian-portfolio-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: FRONTEND_ORIGINS
+        value: https://your-vercel-domain.vercel.app
+      # Optional SMTP for the contact form:
+      # - key: SMTP_HOST
+      # - key: SMTP_PORT
+      # - key: SMTP_USER
+      # - key: SMTP_PASS
+      # - key: MAIL_TO
