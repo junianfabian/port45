@@ -26,7 +26,7 @@ app = FastAPI(title="Portfolio API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://ai-architect-kappa.vercel.app",
+        "https://port45.vercel.app",
         "http://localhost:5173",
         "http://localhost:3000",
     ],
