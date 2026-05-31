@@ -1,33 +1,37 @@
 """
-Junian Portfolio – FastAPI backend.
-
+Portfolio Backend – FastAPI + Resend
 Deploy to Render:
   - Build command : pip install -r requirements.txt
   - Start command : uvicorn app:app --host 0.0.0.0 --port $PORT
-"""
-import os
-import smtplib
-from email.message import EmailMessage
-from typing import Optional
 
+Required environment variables on Render:
+  RESEND_API_KEY   – your Resend API key
+  MAIL_TO          – email address to receive contact messages
+"""
+
+import os
+import requests
+from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
-app = FastAPI(title="Junian Portfolio API")
+app = FastAPI(title="Portfolio API")
 
-# CORS – allow your Vercel domain(s). Set FRONTEND_ORIGINS as a comma list.
-origins = os.getenv(
-    "FRONTEND_ORIGINS",
-    "http://localhost:5173,http://localhost:3000",
-).split(",")
-
+# CORS – allow your Vercel domain + local dev
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in origins if o.strip()],
+    allow_origins=[
+        "https://ai-architect-kappa.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+MAIL_TO = os.environ.get("MAIL_TO")
 
 
 class ContactMessage(BaseModel):
@@ -39,7 +43,7 @@ class ContactMessage(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "junian-portfolio-api"}
+    return {"status": "ok", "service": "portfolio-api"}
 
 
 @app.get("/api/health")
@@ -49,38 +53,43 @@ def health():
 
 @app.post("/api/contact")
 def contact(msg: ContactMessage):
-    """Receives a contact form submission and (optionally) emails it.
-
-    Configure these env vars on Render to enable SMTP delivery:
-      SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_TO
-    Without them, the endpoint just logs the message and returns success.
-    """
-    host = os.getenv("SMTP_HOST")
-    port = int(os.getenv("SMTP_PORT", "587"))
-    user = os.getenv("SMTP_USER")
-    password = os.getenv("SMTP_PASS")
-    mail_to = os.getenv("MAIL_TO", "Junianfabian@gmail.com")
-
-    if not (host and user and password):
+    if not RESEND_API_KEY or not MAIL_TO:
         print(f"[contact] {msg.name} <{msg.email}>: {msg.subject}\n{msg.message}")
-        return {"ok": True, "delivered": False, "note": "SMTP not configured; logged only."}
+        return {
+            "success": True,
+            "delivered": False,
+            "message": "RESEND_API_KEY au MAIL_TO haijawekwa; ujumbe umehifadhiwa tu.",
+        }
 
     try:
-        email = EmailMessage()
-        email["From"] = user
-        email["To"] = mail_to
-        email["Reply-To"] = msg.email
-        email["Subject"] = f"[Portfolio] {msg.subject or 'New message'} — {msg.name}"
-        email.set_content(
-            f"From: {msg.name} <{msg.email}>\n"
-            f"Subject: {msg.subject}\n\n"
-            f"{msg.message}"
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": "onboarding@resend.dev",
+                "to": MAIL_TO,
+                "reply_to": msg.email,
+                "subject": f"Portfolio Contact: {msg.subject or 'New message'} — {msg.name}",
+                "text": (
+                    f"Jina: {msg.name}\n"
+                    f"Barua pepe: {msg.email}\n"
+                    f"Kichwa: {msg.subject}\n\n"
+                    f"Ujumbe:\n{msg.message}"
+                ),
+            },
         )
-        with smtplib.SMTP(host, port) as s:
-            s.starttls()
-            s.login(user, password)
-            s.send_message(email)
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"Mail delivery failed: {e}")
 
-    return {"ok": True, "delivered": True}
+        if response.status_code == 200:
+            return {"success": True, "delivered": True, "message": "Email imetumwa!"}
+        else:
+            print(f"Resend error: {response.text}")
+            raise HTTPException(status_code=502, detail="Imeshindwa kutuma email.")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Kosa: {e}")
+        raise HTTPException(status_code=502, detail=f"Imeshindwa kutuma email: {e}")
