@@ -14,7 +14,7 @@ export function Footer() {
       <div className="max-w-6xl mx-auto px-4 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
         <div>
           <div className="font-display text-xl font-bold text-gradient">Junian Fabian Nchanila</div>
-          <p className="text-sm text-muted-foreground mt-1 font-mono">Intelligent Systems For benefit.</p>
+          <p className="text-sm text-muted-foreground mt-1 font-mono">DATA SCIENTIST | ANALYST</p>
         </div>
         <div className="flex items-center gap-3">
           <a href="mailto:Junianfabian@gmail.com" className="glass neon-border h-10 w-10 grid place-items-center rounded-xl hover:bg-white/5 transition">
@@ -28,7 +28,7 @@ export function Footer() {
           </a>
         </div>
         <div className="font-mono text-xs text-muted-foreground">
-          © {new Date().getFullYear()} JUNIAN.AI
+          © {new Date().getFullYear()} JUNIAN
         </div>
       </div>
     </footer>
