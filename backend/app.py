@@ -1,24 +1,28 @@
 """
-Portfolio Backend – FastAPI + Resend
-Deploy to Render:
-  - Build command : pip install -r requirements.txt
-  - Start command : uvicorn app:app --host 0.0.0.0 --port $PORT
-
-Required environment variables on Render:
-  RESEND_API_KEY   – your Resend API key
-  MAIL_TO          – email address to receive contact messages
+Portfolio Backend — FastAPI + Resend
+Hosted on Render.com
+ 
+Endpoints:
+  GET  /            -> health/info
+  GET  /api/health  -> {"status": "ok"}
+  POST /api/contact -> accepts contact form and sends email via Resend
+ 
+Env vars (required for email):
+  RESEND_API_KEY   -> your Resend API key
+  MAIL_TO          -> recipient email address
 """
-
+ 
 import os
 import requests
-from typing import Optional
-from fastapi import FastAPI, HTTPException
+from datetime import datetime, timezone
+ 
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
-
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, EmailStr
+ 
 app = FastAPI(title="Portfolio API")
-
-# CORS – allow your Vercel domain + local dev
+ 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -26,41 +30,63 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:3000",
     ],
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
-
+ 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 MAIL_TO = os.environ.get("MAIL_TO")
-
-
-class ContactMessage(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
+ 
+ 
+# ---------- Models ----------
+ 
+class ContactForm(BaseModel):
+    name: str
     email: EmailStr
-    subject: Optional[str] = Field(default="", max_length=200)
-    message: str = Field(min_length=1, max_length=5000)
-
-
+    message: str
+ 
+ 
+# ---------- Routes ----------
+ 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "portfolio-api"}
-
-
+    return {
+        "name": "Portfolio API",
+        "status": "online",
+        "time": datetime.now(timezone.utc).isoformat(),
+    }
+ 
+ 
 @app.get("/api/health")
 def health():
-    return {"status": "healthy"}
-
-
+    return {"status": "ok"}
+ 
+ 
 @app.post("/api/contact")
-def contact(msg: ContactMessage):
+async def contact(form: ContactForm):
+    name = form.name.strip()
+    email = str(form.email).strip()
+    message = form.message.strip()
+ 
+    if not name or not email or not message:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": "Taarifa zote zinahitajika"},
+        )
+ 
+    print(
+        f"[contact] {datetime.now(timezone.utc).isoformat()} | "
+        f"{name} <{email}>\n{message}\n"
+    )
+ 
     if not RESEND_API_KEY or not MAIL_TO:
-        print(f"[contact] {msg.name} <{msg.email}>: {msg.subject}\n{msg.message}")
-        return {
-            "success": True,
-            "delivered": False,
-            "message": "RESEND_API_KEY au MAIL_TO haijawekwa; ujumbe umehifadhiwa tu.",
-        }
-
+        print("[contact] RESEND_API_KEY au MAIL_TO haijawekwa — email haitumwi")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "Mfumo wa email haujasanidiwa"},
+        )
+ 
     try:
         response = requests.post(
             "https://api.resend.com/emails",
@@ -71,25 +97,25 @@ def contact(msg: ContactMessage):
             json={
                 "from": "onboarding@resend.dev",
                 "to": MAIL_TO,
-                "reply_to": msg.email,
-                "subject": f"Portfolio Contact: {msg.subject or 'New message'} — {msg.name}",
-                "text": (
-                    f"Jina: {msg.name}\n"
-                    f"Barua pepe: {msg.email}\n"
-                    f"Kichwa: {msg.subject}\n\n"
-                    f"Ujumbe:\n{msg.message}"
-                ),
+                "subject": f"Portfolio Contact: {name}",
+                "text": f"Jina: {name}\nBarua pepe: {email}\n\nUjumbe:\n{message}",
             },
+            timeout=10,
         )
-
-        if response.status_code == 200:
-            return {"success": True, "delivered": True, "message": "Email imetumwa!"}
+ 
+        if response.status_code in (200, 201):
+            return {"success": True, "message": "Email imetumwa!"}
         else:
-            print(f"Resend error: {response.text}")
-            raise HTTPException(status_code=502, detail="Imeshindwa kutuma email.")
-
-    except HTTPException:
-        raise
+            print(f"[contact] Resend error: {response.text}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": "Imeshindwa kutuma"},
+            )
+ 
     except Exception as e:
-        print(f"Kosa: {e}")
-        raise HTTPException(status_code=502, detail=f"Imeshindwa kutuma email: {e}")
+        print(f"[contact] Kosa: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "Imeshindwa kutuma email"},
+        )
+ 
