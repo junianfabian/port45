@@ -51,9 +51,7 @@ export function Navbar() {
               JF
               <span className="absolute inset-0 rounded-lg ring-1 ring-[var(--cyan)]/50 animate-pulse-glow" />
             </div>
-            <span className="hidden sm:block font-mono text-xs tracking-widest text-muted-foreground group-hover:text-[var(--cyan)] transition">
-              JUNIAN.AI
-            </span>
+            
           </a>
 
           <ul className="hidden lg:flex items-center gap-1">
